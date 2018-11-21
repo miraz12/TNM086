@@ -15,12 +15,15 @@ class IntersectCallback : public osg::NodeCallback
 {
 
 public:
-  IntersectCallback(osg::PositionAttitudeTransform* cessnaTransform, osg::Light* light, osg::Geometry* line)
+  IntersectCallback(osg::PositionAttitudeTransform* cessnaTransform, osg::LightSource* light, osg::Geometry* line)
   {
     m_cessnaTransform = cessnaTransform;
-    m_light = light;
+    m_lightSource = light;
+    m_light = new osg::Light();
     m_line = line;
     state = false;
+    change = false;
+    counter = 0;
 
     
   };
@@ -29,37 +32,48 @@ public:
   {
 
     //printf("plbbo\n");
+    ++counter;
     m_intersector = new osgUtil::LineSegmentIntersector(osg::Vec3(-100., 0., 0.), osg::Vec3(100., 0., 0.));
     
     osgUtil::IntersectionVisitor iv( m_intersector);
 
 
     m_cessnaTransform->accept( iv );
+    bool intersection = m_intersector->containsIntersections();
 
-    if (m_intersector->containsIntersections())
+    if (intersection && !state && counter >= 60)
     {
+    	counter = 0;
+    	if(change)
+    	{
+	      m_light->setAmbient(osg::Vec4(0.5, 0.8, 0.2, 0.0));
+	      m_light->setDiffuse(osg::Vec4(0.1, 0.9, 0.1, 0.0));
+	      m_light->setSpecular(osg::Vec4(0.1, 0.2, 0.3, 0.0));
+	      m_lightSource->setLight(m_light);
 
-        m_light->setAmbient(osg::Vec4(0.5, 0.8, 0.2, 0.0));
-        m_light->setDiffuse(osg::Vec4(0.1, 0.9, 0.1, 0.0));
-        m_light->setSpecular(osg::Vec4(0.1, 0.2, 0.3, 0.0));
-        osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array;
-        colors->push_back(osg::Vec4(0.0f,0.2f,0.9f,1.0f));
-        m_line->setColorArray(colors, osg::Array::BIND_OVERALL);
-        state = true;
-      }
-      else
-      {
+	      osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array;
+	      colors->push_back(osg::Vec4(0.9f,0.2f,0.3f,1.0f));
+	      m_line->setColorArray(colors, osg::Array::BIND_OVERALL);
+	      change = false;
+  		}
+  		else
+  		{
+		  m_light->setAmbient(osg::Vec4(0.0, 0.5, 0.5, 0.0));
+	      m_light->setDiffuse(osg::Vec4(0.5, 0.1, 0.8, 0.0));
+	      m_light->setSpecular(osg::Vec4(0.1, 0.2, 0.3, 0.0));
+	      m_lightSource->setLight(m_light);
 
-        m_light->setAmbient(osg::Vec4(0.0, 0.1, 0.1, 0.0));
-        m_light->setDiffuse(osg::Vec4(0.1, 0.1, 0.2, 0.0));
-        m_light->setSpecular(osg::Vec4(0.0, 0.0, 1.0, 0.0));
-        osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array;
-        colors->push_back(osg::Vec4(0.9f,0.2f,0.3f,1.0f));
-        m_line->setColorArray(colors, osg::Array::BIND_OVERALL);
-        state = false;
-      }
-
-      printf("plbbo\n");
+	      osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array;
+	      colors->push_back(osg::Vec4(0.0f,0.2f,0.9f,1.0f));
+	      m_line->setColorArray(colors, osg::Array::BIND_OVERALL);
+	      change = true;
+  		}
+      state = true;
+    }
+    if(!intersection && state)
+    {
+    	state = false;
+    }
 
     traverse(node, nv);
     //node->accept(nv);
@@ -74,9 +88,12 @@ public:
 private:
   osg::PositionAttitudeTransform* m_cessnaTransform;
   osg::Light* m_light;
+  osg::LightSource* m_lightSource;
   osg::Geometry* m_line;
   osgUtil::LineSegmentIntersector* m_intersector;
   bool state;
+  bool change;
+  int counter;
 };
 
 
@@ -108,8 +125,8 @@ osg::AnimationPath* createAnimationPath(float radius, float time)
   for (int i = 0; i < numSamples; ++i)
   {
      float yaw = deltaYaw * (float)i;
-     osg::Vec3 pos(sinf(yaw) *radius, cosf(yaw)*radius, 0.0f);
-     osg::Quat rot( -yaw, osg::Z_AXIS );
+     osg::Vec3 pos(sinf(yaw) *radius, cosf(yaw)*radius, 1.0f);
+     osg::Quat rot( -yaw+3.14*0.5, osg::Z_AXIS );
      pathCessna->insert( deltaTime * (float)i, osg::AnimationPath::ControlPoint(pos, rot));
   } 
    return pathCessna;
@@ -219,9 +236,6 @@ int main(int argc, char *argv[]){
 
   cessnaTransform->setUpdateCallback(apcb);
 
-
-
-
   osg::Light *light1 = new osg::Light();
   light1->setPosition(osg::Vec4(0.0, 0.0, 10.0, 1.0));
   light1->setAmbient(osg::Vec4(0.5, 0.0, 0.5, 0.0));
@@ -246,7 +260,7 @@ int main(int argc, char *argv[]){
 
 
   
-  root->setUpdateCallback(new IntersectCallback(cessnaTransform, light1, linesGeom));
+  root->setUpdateCallback(new IntersectCallback(cessnaTransform, lightSource2, linesGeom));
 
   // Optimizes the scene-graph
   //osgUtil::Optimizer optimizer;
