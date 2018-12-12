@@ -1,0 +1,15 @@
+<X3D profile='Immersive' version='3.0'>
+  <Scene>
+	<NavigationInfo type="none"/>
+    <Group>
+      <Viewpoint position="0 0 0.6"/>
+      <Shape DEF="BOX">
+        <Appearance>
+          <Material diffuseColor="1 0 0"/>
+		  <SmoothSurface useRelativeValues="false" stiffness="200" damping="0"/>
+        </Appearance>
+		<Box DEF="CUBE" size="0.06 0.06 0.06"/>
+      </Shape>
+    </Group>
+  </Scene>
+</X3D>

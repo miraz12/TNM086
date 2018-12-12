@@ -1,0 +1,56 @@
+ <X3D profile='Immersive' version='3.0'>
+ <Scene>
+<IMPORT inlineDEF="H3D_EXPORTS" exportedDEF="HDEV" AS="HDEV"/>
+	<NavigationInfo type="none"/>
+	<Group>
+		<Viewpoint position="0 0 0.5"/>
+		<Transform translation="0.0 0.0 0.0">
+			<Shape>
+				<Appearance>
+					<Material DEF="box1Mat" diffuseColor="1 0 0"/>
+					<FrictionalSurface dynamicFriction="0.2" staticFriction="0.2" stiffness="800" useRelativeValues="false" damping="1"/>
+				</Appearance>
+				<Box DEF="box1" size="0.05 0.05 0.05"/>
+			</Shape>
+		</Transform>
+		<Transform translation="0.1 0.0 0.0">
+			<Shape>
+				<Appearance>
+					<Material diffuseColor="0 0 1"/>
+					<FrictionalSurface dynamicFriction="0.6" staticFriction="0.2" stiffness="800" useRelativeValues="false" damping="2"/>
+				</Appearance>
+				<Box  size="0.05 0.05 0.05"/>
+			</Shape>
+		</Transform>
+		<Transform translation="-0.1 0.0 0.0">
+			<Shape>
+				<Appearance>
+					<Material diffuseColor="0 1 0"/>
+					<FrictionalSurface dynamicFriction="0.2" staticFriction="0.6" stiffness="800" useRelativeValues="false" damping="3"/>
+				</Appearance>
+				<Box size="0.05 0.05 0.05"/>
+			</Shape>
+		</Transform>
+		<Transform translation="0.0 0.1 0.0">
+			<Shape>
+				<Appearance> 
+					<ImageTexture url="perlin.png"/>
+					<DepthMapSurface maxDepth="2.0" >
+						<ImageTexture containerField="depthMap" url="perlin.png"/>
+					</DepthMapSurface>
+				</Appearance>
+				<Box size="0.05 0.05 0.05"/>
+			</Shape>
+		</Transform>
+	</Group>
+	
+	<PythonScript DEF="colorPy" url="changeColor.py" />
+	
+	<ROUTE fromNode="box1" fromField="isTouched"
+		   toNode="colorPy" toField="changeColor" />
+	<ROUTE fromNode="colorPy" fromField="changeColor"
+           toNode="box1Mat" toField="diffuseColor" />
+		   
+</Scene>
+</X3D>
+

@@ -1,0 +1,25 @@
+ <X3D profile='Immersive' version='3.0'>
+ <Scene>
+<IMPORT inlineDEF="H3D_EXPORTS" exportedDEF="HDEV" AS="HDEV"/>
+	<NavigationInfo type="none"/>
+	<ForceField DEF="forceField" force="0 0 0"/>
+	<Transform>
+		<Shape>
+			<Appearance>
+				<Material diffuseColor = "0 0 1"/>
+			</Appearance>
+			<Sphere DEF="ForceSphere" radius="0.05"/>
+		</Shape>
+	</Transform>
+	
+	<PythonScript DEF="ForcePY" url="hooksLawForce.py" />
+	
+	<ROUTE fromNode = "HDEV" fromField="trackerPosition"
+           toNode="ForcePY" toField="calcForce" />
+	<ROUTE fromNode="ForceSphere" fromField="isTouched"
+           toNode="ForcePY" toField="calcForce"/>
+	<ROUTE fromNode="ForcePY" fromField = "calcForce"
+           toNode="forceField" toField="force"/> 
+</Scene>
+</X3D>
+
