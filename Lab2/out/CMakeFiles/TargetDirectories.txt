@@ -1,0 +1,3 @@
+H:/Downloads/TNM086/Lab2/out/CMakeFiles/solution.dir
+H:/Downloads/TNM086/Lab2/out/CMakeFiles/ALL_BUILD.dir
+H:/Downloads/TNM086/Lab2/out/CMakeFiles/ZERO_CHECK.dir

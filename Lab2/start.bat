@@ -7,5 +7,7 @@ rem
 set SCRIPT_PATH=%~dp0
 call %SCRIPT_PATH%/setenv.bat
 
-start solution.exe -config config/vr_lab_workbench_vive.xml -local 0
-start solution.exe -config config/vr_lab_workbench_vive.xml -local 1 --slave
+set CONFIG=D:/VRSystem/Desktop-folder/sgct_config/vr_lab_workbench_vive.xml
+
+start solution.exe -config %CONFIG% -local 0
+start solution.exe -config %CONFIG% -local 1 --slave

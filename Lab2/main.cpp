@@ -7,6 +7,19 @@
 
 #include <osg/ComputeBoundsVisitor>
 
+#include <osg/Version>
+#include <osg/LineSegment>
+#include <osg/ShapeDrawable>
+#include <osgDB/ReadFile>
+
+#include <osgViewer/Viewer>
+#include <osgUtil/Optimizer>
+#include <osgUtil/Simplifier>
+#include <osgUtil/LineSegmentIntersector>
+#include <osg/PositionAttitudeTransform>
+
+#include <cmath>
+
 sgct::Engine * gEngine;
 
 #define WAND_SENSOR_IDX 0
@@ -19,6 +32,8 @@ osg::ref_ptr<osg::MatrixTransform> mSGCTTrans;
 osg::ref_ptr<osg::MatrixTransform> mSceneTrans;
 osg::ref_ptr<osg::FrameStamp> mFrameStamp; //to sync osg animations across cluster
 osg::ref_ptr<osg::Geometry> linesGeom;
+osg::ref_ptr<osg::LineSegment> lineSegment;
+osg::ref_ptr<osg::Node> cessna;
 
 // callbacks
 void myInitOGLFun();
@@ -52,6 +67,32 @@ sgct::SharedBool light(true);
 bool arrowButtons[4];
 enum directions { FORWARD = 0, BACKWARD, LEFT, RIGHT };
 const double navigation_speed = 1.0;
+
+class IntersectCallback : public osg::NodeCallback
+{
+
+public:
+    IntersectCallback(osg::MatrixTransform* cessnaTransform)
+    {
+        m_cessnaTransform = cessnaTransform;
+    };
+
+    virtual void operator()(osg::Node* node, osg::NodeVisitor* nv)
+    {
+
+        if (lineSegment->intersect(dynamic_cast<osg::Geode*>(cessna.get())->getBoundingBox()))
+        {
+            printf("BOOP\n");
+        }
+        //else
+        //    printf("NOBOOP\n");
+
+    }
+
+private:
+    osg::MatrixTransform* m_cessnaTransform;
+
+};
 
 int main( int argc, char* argv[] ) {
   gEngine = new sgct::Engine( argc, argv );
@@ -113,52 +154,71 @@ void createOSGScene() {
   mRootNode->addChild(createWand());
 
   osg::ref_ptr<osg::Node>            mModel;
+  osg::ref_ptr<osg::Node>            mCessna;
   osg::ref_ptr<osg::MatrixTransform> mModelTrans;
+  osg::ref_ptr<osg::MatrixTransform> mCessnaTrans;
+
 
   mSGCTTrans         = new osg::MatrixTransform();
   mSceneTrans        = new osg::MatrixTransform();
   mModelTrans        = new osg::MatrixTransform();
+  mCessnaTrans =        new osg::MatrixTransform();
+
 
   //rotate osg coordinate system to match sgct
   mModelTrans->preMult(osg::Matrix::rotate(glm::radians(-90.0f),
                                            1.0f, 0.0f, 0.0f));
+  mCessnaTrans->preMult(osg::Matrix::rotate(glm::radians(-90.0f),
+      1.0f, 0.0f, 0.0f));
+
 
   mRootNode->addChild( mSGCTTrans.get() );
   mSGCTTrans->addChild( mSceneTrans.get() );
   mSceneTrans->addChild( mModelTrans.get() );
+  mSceneTrans->addChild(mCessnaTrans.get() );
 
   sgct::MessageHandler::instance()->print("Loading model 'airplane.ive'...\n");
   mModel = osgDB::readNodeFile("airplane.ive");
+  mCessna = osgDB::readNodeFile("cessna.osg");
 
-  if (!mModel.valid()) {
+  if (!mModel.valid() && !mCessna.valid()) {
     sgct::MessageHandler::instance()->print("Failed to read model!\n");
     return;
   }
 
   sgct::MessageHandler::instance()->print("Model loaded successfully!\n");
   mModelTrans->addChild(mModel.get());
+  mCessnaTrans->addChild(mCessna.get());
 
   //get the bounding box
   osg::ComputeBoundsVisitor cbv;
   osg::BoundingBox &bb(cbv.getBoundingBox());
   mModel->accept( cbv );
+  mCessna->accept(cbv);
+  cessna = mCessna;
 
   osg::Vec3f tmpVec;
   tmpVec = bb.center();
 
   // translate model center to origin
   mModelTrans->postMult(osg::Matrix::translate( -tmpVec ) );
+  mCessnaTrans->postMult(osg::Matrix::translate( -tmpVec ) );
 
   // scale model to a manageable size
   double scale = 0.1 / bb.radius();
   mModelTrans->postMult(osg::Matrix::scale(scale, scale, scale));
+  mCessnaTrans->postMult(osg::Matrix::scale(scale, scale, scale));
 
   sgct::MessageHandler::instance()->print("Model bounding sphere center:\tx=%f\ty=%f\tz=%f\n", tmpVec[0], tmpVec[1], tmpVec[2] );
   sgct::MessageHandler::instance()->print("Model bounding sphere radius:\t%f\n", bb.radius() );
 
+  mRootNode->setUpdateCallback(new IntersectCallback(mCessnaTrans));
+
   //disable face culling
   mModel->getOrCreateStateSet()->setMode( GL_CULL_FACE,
                                           osg::StateAttribute::OFF | osg::StateAttribute::OVERRIDE);
+  mCessna->getOrCreateStateSet()->setMode(GL_CULL_FACE,
+      osg::StateAttribute::OFF | osg::StateAttribute::OVERRIDE);
 }
 
 void myPreSyncFun() {
@@ -272,6 +332,7 @@ void myPostSyncPreDrawFun() {
     vertices->push_back(wand_start);
     vertices->push_back(wand_end);
     linesGeom->setVertexArray(vertices);
+    lineSegment->set(wand_start, wand_end);
   }
 
 
@@ -447,6 +508,8 @@ osg::Geode* createWand() {
   osg::Geode* geode = new osg::Geode();
 
   linesGeom = new osg::Geometry();
+  lineSegment = new osg::LineSegment();
+  lineSegment->set(osg::Vec3(0, 0, 0), osg::Vec3(1, 0, 0));
 
   osg::Vec3Array* vertices = new osg::Vec3Array();
   vertices->push_back(osg::Vec3(0, 0, 0));
