@@ -20,6 +20,16 @@
 
 #include <cmath>
 
+#include <sgct.h>
+
+#include <osgViewer/Viewer>
+#include <osgDB/ReadFile>
+#include <osg/MatrixTransform>
+
+#include <osg/ComputeBoundsVisitor>
+#include <osg/Material>
+#include <glm/gtx/matrix_interpolation.hpp>
+
 sgct::Engine * gEngine;
 
 #define WAND_SENSOR_IDX 0
@@ -32,7 +42,7 @@ osg::ref_ptr<osg::MatrixTransform> mSGCTTrans;
 osg::ref_ptr<osg::MatrixTransform> mSceneTrans;
 osg::ref_ptr<osg::FrameStamp> mFrameStamp; //to sync osg animations across cluster
 osg::ref_ptr<osg::Geometry> linesGeom;
-osg::ref_ptr<osg::LineSegment> lineSegment;
+osg::ref_ptr<osgUtil::LineSegmentIntersector> lineSegment;
 osg::ref_ptr<osg::Node> cessna;
 
 // callbacks
@@ -63,6 +73,10 @@ sgct::SharedBool stats(false);
 sgct::SharedBool takeScreenshot(false);
 sgct::SharedBool light(true);
 
+//Set as global to be able to move wand linge in non vr enviorment.
+osg::Vec3 wand_start = osg::Vec3(0, 0, 1);
+osg::Vec3 wand_end = osg::Vec3(0, 0, 0);
+
 // Simple initial navigation based on arrow buttons
 bool arrowButtons[4];
 enum directions { FORWARD = 0, BACKWARD, LEFT, RIGHT };
@@ -72,25 +86,57 @@ class IntersectCallback : public osg::NodeCallback
 {
 
 public:
-    IntersectCallback(osg::MatrixTransform* cessnaTransform)
+    IntersectCallback(osg::MatrixTransform* transformC, osg::MatrixTransform* transformM)
     {
-        m_cessnaTransform = cessnaTransform;
+        m_transformC = transformC;
+        m_transformM = transformM;
     };
 
     virtual void operator()(osg::Node* node, osg::NodeVisitor* nv)
     {
 
-        if (lineSegment->intersect(dynamic_cast<osg::Geode*>(cessna.get())->getBoundingBox()))
-        {
-            printf("BOOP\n");
-        }
-        //else
-        //    printf("NOBOOP\n");
+        osgUtil::IntersectionVisitor iv(lineSegment);
+        mRootNode->accept(iv);
 
+        if (lineSegment->containsIntersections())
+        {
+            osgUtil::LineSegmentIntersector::Intersection intersectionInfo = lineSegment->getFirstIntersection();
+            
+            osg::ref_ptr<osg::Material> mat = new osg::Material();
+            mat->setAmbient(osg::Material::FRONT_AND_BACK, osg::Vec4(1, 0, 0, 1.0));
+            mat->setDiffuse(osg::Material::FRONT_AND_BACK, osg::Vec4(1, 0, 0, 1.0));
+
+            osg::ref_ptr<osg::Node> inter;
+            for (osg::NodePath::iterator it = intersectionInfo.nodePath.begin(); it != intersectionInfo.nodePath.end(); ++it) 
+            {
+                if ((*it) == m_transformM || (*it) == m_transformC)
+                {
+                    inter = (*it);
+                }
+            }
+
+            if (inter)
+            {
+                inter->getOrCreateStateSet()->setAttributeAndModes(mat.get(), osg::StateAttribute::OVERRIDE);
+                printf("bloop\n");
+            }
+        }
+        else
+        {
+            printf("NO bloop\n");
+            osg::ref_ptr<osg::Material> mat = new osg::Material();
+            mat->setAmbient(osg::Material::FRONT_AND_BACK, osg::Vec4(1, 1, 1, 1.0));
+            mat->setDiffuse(osg::Material::FRONT_AND_BACK, osg::Vec4(1, 1, 1, 1.0));
+            m_transformC->getOrCreateStateSet()->setAttributeAndModes(mat.get(), osg::StateAttribute::OVERRIDE);
+            m_transformM->getOrCreateStateSet()->setAttributeAndModes(mat.get(), osg::StateAttribute::OVERRIDE);
+        }
+
+        lineSegment->reset();
     }
 
 private:
-    osg::MatrixTransform* m_cessnaTransform;
+    osg::MatrixTransform* m_transformC;
+    osg::MatrixTransform* m_transformM;
 
 };
 
@@ -172,6 +218,9 @@ void createOSGScene() {
       1.0f, 0.0f, 0.0f));
 
 
+
+
+
   mRootNode->addChild( mSGCTTrans.get() );
   mSGCTTrans->addChild( mSceneTrans.get() );
   mSceneTrans->addChild( mModelTrans.get() );
@@ -199,10 +248,14 @@ void createOSGScene() {
 
   osg::Vec3f tmpVec;
   tmpVec = bb.center();
+  tmpVec.x() += 20;
 
   // translate model center to origin
   mModelTrans->postMult(osg::Matrix::translate( -tmpVec ) );
-  mCessnaTrans->postMult(osg::Matrix::translate( -tmpVec ) );
+  tmpVec = bb.center();
+  tmpVec.x() -= 20;
+  mCessnaTrans->postMult(osg::Matrix::translate(-tmpVec));
+
 
   // scale model to a manageable size
   double scale = 0.1 / bb.radius();
@@ -211,8 +264,8 @@ void createOSGScene() {
 
   sgct::MessageHandler::instance()->print("Model bounding sphere center:\tx=%f\ty=%f\tz=%f\n", tmpVec[0], tmpVec[1], tmpVec[2] );
   sgct::MessageHandler::instance()->print("Model bounding sphere radius:\t%f\n", bb.radius() );
-
-  mRootNode->setUpdateCallback(new IntersectCallback(mCessnaTrans));
+  
+  mRootNode->setUpdateCallback(new IntersectCallback(mCessnaTrans, mModelTrans));
 
   //disable face culling
   mModel->getOrCreateStateSet()->setMode( GL_CULL_FACE,
@@ -325,6 +378,7 @@ void myPostSyncPreDrawFun() {
 
     glm::vec3 start = wand_position;
     glm::vec3 end = wand_position + wand_orientation * glm::vec3(0,0,-1);
+
     osg::Vec3d wand_start = osg::Vec3(start.x, start.y, start.z);
     osg::Vec3d wand_end = osg::Vec3(end.x, end.y, end.z);
 
@@ -332,8 +386,27 @@ void myPostSyncPreDrawFun() {
     vertices->push_back(wand_start);
     vertices->push_back(wand_end);
     linesGeom->setVertexArray(vertices);
-    lineSegment->set(wand_start, wand_end);
+    lineSegment->setStart(wand_start);
+    lineSegment->setEnd(wand_end);
+
+
   }
+  else //For non vr env
+  {
+      osg::Vec3Array* vertices = new osg::Vec3Array();
+      vertices->push_back(wand_start);
+      vertices->push_back(wand_end);
+      linesGeom->setVertexArray(vertices);
+      lineSegment->setStart(wand_start);
+      lineSegment->setEnd(wand_end);
+  }
+
+  if (sharedTransforms.getSize() > HEAD_SENSOR_IDX) 
+  {
+
+
+  }
+
 
 
   //traverse if there are any tasks to do
@@ -358,10 +431,10 @@ void myDrawFun() {
 	int fontSize = 12;
 
 	glColor3f(1.0f, 1.0f, 1.0f);
-	sgct_text::print(sgct_text::FontManager::instance()->getFont( "SGCTFont", fontSize ),
+	/*sgct_text::print(sgct_text::FontManager::instance()->getFont( "SGCTFont", fontSize ),
 		sgct_text::TextAlignMode::TOP_LEFT,
 		120.0f, textVerticalPos,
-		sharedText.getVal().c_str() );
+		sharedText.getVal().c_str() );*/
 }
 
 void myEncodeFun() {
@@ -395,13 +468,36 @@ void myCleanUpFun() {
 void keyCallback(int key, int action) {
   if(!gEngine->isMaster())
     return;
+  const double dt = gEngine->getDt();
 
   switch (key) {
+  /*case 'W':
+    if (action == SGCT_PRESS)
+      wireframe.toggle();
+    break;
+      
   case 'S':
     if(action == SGCT_PRESS)
       stats.toggle();
-    break;
-
+    break;*/
+  //Wand line debug movement----------------
+  case 'W':
+      //wand_start.y() += 1 * dt;
+      wand_end.y() += 1 * dt;
+      break;
+  case 'A':
+      //wand_start.x() -= 1 * dt;
+      wand_end.x() -= 1 * dt;
+      break;
+  case 'S':
+      //wand_start.y() -= 1 * dt;
+      wand_end.y() -= 1 * dt;
+      break;
+  case 'D':
+      //wand_start.x() += 1 * dt;
+      wand_end.x() += 1 * dt;
+      break;
+  //------------------------------------------
   case 'I':
     if(action == SGCT_PRESS)
       info.toggle();
@@ -412,10 +508,7 @@ void keyCallback(int key, int action) {
       light.toggle();
     break;
 
-  case 'W':
-    if(action == SGCT_PRESS)
-      wireframe.toggle();
-    break;
+ 
 
   case 'Q':
     if(action == SGCT_PRESS)
@@ -507,13 +600,14 @@ osg::Geode* createWand() {
 
   osg::Geode* geode = new osg::Geode();
 
+
+  
   linesGeom = new osg::Geometry();
-  lineSegment = new osg::LineSegment();
-  lineSegment->set(osg::Vec3(0, 0, 0), osg::Vec3(1, 0, 0));
+  lineSegment = new osgUtil::LineSegmentIntersector(wand_start, wand_end);
 
   osg::Vec3Array* vertices = new osg::Vec3Array();
-  vertices->push_back(osg::Vec3(0, 0, 0));
-  vertices->push_back(osg::Vec3(1, 0, 0));
+  vertices->push_back(wand_start);
+  vertices->push_back(wand_end);
   linesGeom->setVertexArray(vertices);
 
   osg::Vec4Array* colors = new osg::Vec4Array;
