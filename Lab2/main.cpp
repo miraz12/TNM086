@@ -66,6 +66,7 @@ sgct::SharedDouble curr_time(0.0);
 sgct::SharedDouble dist(-2.0);
 sgct::SharedVector<glm::mat4> sharedTransforms;
 sgct::SharedString sharedText;
+sgct::SharedVector<bool> wandButtons;
 
 sgct::SharedBool wireframe(false);
 sgct::SharedBool info(false);
@@ -81,6 +82,12 @@ osg::Vec3 wand_end = osg::Vec3(0, 0, 0);
 bool arrowButtons[4];
 enum directions { FORWARD = 0, BACKWARD, LEFT, RIGHT };
 const double navigation_speed = 1.0;
+float headSpeed = 1.0;
+
+glm::mat4 currWandMat;
+glm::mat4 prevWandMat;
+
+bool selecting = true;
 
 class IntersectCallback : public osg::NodeCallback
 {
@@ -114,23 +121,32 @@ public:
                     inter = (*it);
                 }
             }
-
-            if (inter)
+            if (inter && !selecting)
             {
                 inter->getOrCreateStateSet()->setAttributeAndModes(mat.get(), osg::StateAttribute::OVERRIDE);
                 printf("bloop\n");
+            }
+            else if (inter && selecting)
+            {
+                osg::ref_ptr<osg::Material> mat = new osg::Material();
+                mat->setAmbient(osg::Material::FRONT_AND_BACK, osg::Vec4(0, 0, 1, 1.0));
+                mat->setDiffuse(osg::Material::FRONT_AND_BACK, osg::Vec4(0, 0, 1, 1.0));
+                inter->getOrCreateStateSet()->setAttributeAndModes(mat.get(), osg::StateAttribute::OVERRIDE);
+
+                osg::ref_ptr < osg::MatrixTransform > parent = inter->getParent(0)->asTransform()->asMatrixTransform();
+                //Get difference between current wand matrix and previous wand matrix and apply to model.
+                parent->postMult(osg::Matrix(glm::value_ptr(glm::inverse(prevWandMat*glm::inverse(currWandMat)))));
+               
+
             }
         }
         else
         {
             printf("NO bloop\n");
-            osg::ref_ptr<osg::Material> mat = new osg::Material();
-            mat->setAmbient(osg::Material::FRONT_AND_BACK, osg::Vec4(1, 1, 1, 1.0));
-            mat->setDiffuse(osg::Material::FRONT_AND_BACK, osg::Vec4(1, 1, 1, 1.0));
-            m_transformC->getOrCreateStateSet()->setAttributeAndModes(mat.get(), osg::StateAttribute::OVERRIDE);
-            m_transformM->getOrCreateStateSet()->setAttributeAndModes(mat.get(), osg::StateAttribute::OVERRIDE);
+            m_transformC->getOrCreateStateSet()->removeAttribute(osg::StateAttribute::MATERIAL);
+            m_transformM->getOrCreateStateSet()->removeAttribute(osg::StateAttribute::MATERIAL);
         }
-
+        prevWandMat = currWandMat;
         lineSegment->reset();
     }
 
@@ -310,10 +326,12 @@ void myPreSyncFun() {
         index++;
       }
 
+
       if( devicePtr->hasButtons() ){
         message << "Buttons:" << std::endl << "  ";
         for( int idx = 0 ; idx < devicePtr->getNumberOfButtons() ; ++idx ){
           message << devicePtr->getButton(idx) ? "1" : "0";
+          wandButtons.setValAt(idx, devicePtr->getButton(idx));
         }
         message << std::endl;
       }
@@ -370,11 +388,11 @@ void myPostSyncPreDrawFun() {
 
   // Update wand in OSG
   if( sharedTransforms.getSize() > WAND_SENSOR_IDX ){
-    glm::mat4 wand_matrix = sharedTransforms.getValAt(WAND_SENSOR_IDX);
+      currWandMat = sharedTransforms.getValAt(WAND_SENSOR_IDX);
 
-    glm::vec3 wand_position = glm::vec3(wand_matrix*glm::vec4(0,0,0,1));
+    glm::vec3 wand_position = glm::vec3(currWandMat*glm::vec4(0,0,0,1));
     //glm::quat wand_orientation = glm::quat_cast(wand_matrix);
-    glm::mat3 wand_orientation = glm::mat3(wand_matrix);
+    glm::mat3 wand_orientation = glm::mat3(currWandMat);
 
     glm::vec3 start = wand_position;
     glm::vec3 end = wand_position + wand_orientation * glm::vec3(0,0,-1);
@@ -389,7 +407,22 @@ void myPostSyncPreDrawFun() {
     lineSegment->setStart(wand_start);
     lineSegment->setEnd(wand_end);
 
-
+    if (wandButtons.getValAt(2)) //pointing
+    {
+        headSpeed += 0.1;
+    }
+    if (wandButtons.getValAt(3))
+    {
+        headSpeed -= 0.1;
+    }
+    if (wandButtons.getValAt(4))
+    {
+        selecting = true;
+    }
+    else
+    {
+        selecting = false;
+    }
   }
   else //For non vr env
   {
@@ -401,13 +434,27 @@ void myPostSyncPreDrawFun() {
       lineSegment->setEnd(wand_end);
   }
 
+
+  
+    //Camera movement
   if (sharedTransforms.getSize() > HEAD_SENSOR_IDX) 
   {
+      glm::mat4 headMat = sharedTransforms.getValAt(HEAD_SENSOR_IDX);
+      glm::vec3 headPosition = glm::vec3(headMat[3]); //Extract position from matrix
+      glm::mat4 wandMat = sharedTransforms.getValAt(WAND_SENSOR_IDX);
+      glm::vec3 wandPos = glm::vec3(wandMat[3]);
 
-
+      if (wandButtons.getValAt(0)) //pointing
+      {
+          glm::vec3 translation = glm::mat3(wandMat) * glm::vec3(0, 0, -1)*(float)gEngine->getDt()*headSpeed;
+          mSceneTrans->postMult(osg::Matrix::translate(-osg::Vec3(translation.x, translation.y, translation.z)));
+      }
+      else if (wandButtons.getValAt(1)) //crosshair
+      {
+          glm::vec3 translation = glm::normalize(headPosition - wandPos)*(float)gEngine->getDt()*headSpeed;
+          mSceneTrans->postMult(osg::Matrix::translate(osg::Vec3(translation.x, translation.y, translation.z)));
+      }
   }
-
-
 
   //traverse if there are any tasks to do
   if (!mViewer->done()) {
