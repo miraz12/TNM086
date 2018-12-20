@@ -311,16 +311,16 @@ void calculateIntersections() {
     if(!mat) {
       mat = new osg::Material();
     }
-    mat->setAmbient (osg::Material::FRONT_AND_BACK, osg::Vec4(1, 1, 0, 1.0));
-    mat->setDiffuse (osg::Material::FRONT_AND_BACK, osg::Vec4(1, 1, 0, 1.0));
+    mat->setAmbient (osg::Material::FRONT_AND_BACK, osg::Vec4(0, 1, 0, 1.0));
+    mat->setDiffuse (osg::Material::FRONT_AND_BACK, osg::Vec4(0, 1, 0, 1.0));
 
     intersectedNode->getOrCreateStateSet()->setAttributeAndModes(mat.get(), osg::StateAttribute::OVERRIDE);
   }
   else if(selecting && intersectedNode) {
 	//selection button pressed - make the object green and make it follow the wand
     osg::ref_ptr<osg::Material> mat = (osg::Material*)intersectedNode->getOrCreateStateSet()->getAttribute(osg::StateAttribute::MATERIAL);
-    mat->setAmbient (osg::Material::FRONT_AND_BACK, osg::Vec4(0, 1, 0, 1.0));
-    mat->setDiffuse (osg::Material::FRONT_AND_BACK, osg::Vec4(0, 1, 0, 1.0));
+    mat->setAmbient (osg::Material::FRONT_AND_BACK, osg::Vec4(1, 0, 0, 1.0));
+    mat->setDiffuse (osg::Material::FRONT_AND_BACK, osg::Vec4(1, 0, 0, 1.0));
     intersectedNode->getOrCreateStateSet()->setAttributeAndModes(mat.get(), osg::StateAttribute::OVERRIDE);
 
 	//use the difference between the starting wand orientation and current position to determine the transformation
