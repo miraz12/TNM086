@@ -189,25 +189,28 @@ void myPostSyncPreDrawFun(){
   bool crosshair = false;
 
   //Update position if button is pressed
-  if(sharedButton.getSize()) {
-    if(sharedButton.getValAt(0)) {
-       //point mode
-       point = true;
-	   moving = true;
+  if(sharedButton.getSize() => 3) 
+  {
+    if(sharedButton.getValAt(0)) 
+    {
+      //point mode
+      point = true;
+	    moving = true;
     }
-    else if(sharedButton.getValAt(1)) {
-       //crosshair mode
-       crosshair = true;
-	   moving = true;
+    else if(sharedButton.getValAt(1)) 
+    {
+      //crosshair mode
+      crosshair = true;
+	    moving = true;
     }
-    else if(sharedButton.getValAt(2)) {
+    else if(sharedButton.getValAt(2))
+    {
       //Selection of model
       selecting = true;
-
     }
     else {
-	  selecting = false;
-	  moving = false;
+	    selecting = false;
+	  zmoving = false;
     }
   }
   // Draw wand in OSG
