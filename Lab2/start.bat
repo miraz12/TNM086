@@ -7,5 +7,5 @@ rem
 set SCRIPT_PATH=%~dp0
 call %SCRIPT_PATH%/setenv.bat
 
-start solution.exe -config config/vr_lab_workbench_vive.xml -local 0
-start solution.exe -config config/vr_lab_workbench_vive.xml -local 1 --slave
+start solution.exe -config config/vr_lab_workbench_viveFIX.xml -local 0
+start solution.exe -config config/vr_lab_workbench_viveFIX.xml -local 1 --slave

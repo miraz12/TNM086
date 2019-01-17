@@ -189,28 +189,31 @@ void myPostSyncPreDrawFun() {
     bool crosshair = false;
 
     //Update position if button is pressed
-    if (sharedButton.getSize() = > 3)
+    if (sharedButton.getSize() > 0)
     {
         if (sharedButton.getValAt(0))
         {
             //point mode
             point = true;
             moving = true;
+
         }
         else if (sharedButton.getValAt(1))
         {
             //crosshair mode
             crosshair = true;
             moving = true;
+
         }
         else if (sharedButton.getValAt(2))
         {
             //Selection of model
             selecting = true;
+            printf("sel\n");
         }
         else {
             selecting = false;
-            zmoving = false;
+            moving = false;
         }
     }
     // Draw wand in OSG
@@ -357,9 +360,7 @@ void myDrawFun() {
     int fontSize = 12;
 
     glColor3f(1.0f, 1.0f, 1.0f);
-    sgct_text::print(sgct_text::FontManager::instance()->getFont("SGCTFont", fontSize),
-        120.0f, textVerticalPos,
-        sharedText.getVal().c_str());
+   
 }
 
 void myEncodeFun() {
@@ -422,7 +423,7 @@ void keyCallback(int key, int action) {
         selecting = false;
         break;
 
-
+    }
     }
 
     void initOSG() {
